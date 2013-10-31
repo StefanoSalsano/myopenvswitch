@@ -285,6 +285,58 @@ const char *ofputil_packet_in_reason_to_string(enum ofp_packet_in_reason);
 bool ofputil_packet_in_reason_from_string(const char *,
                                           enum ofp_packet_in_reason *);
 
+
+/* authors by alessandra
+ * Abstract experimenter long message
+ * ofputil_decode_experimenter_long() will use in learning switch */
+struct ofputil_experimenter_long {
+    const void *packet;
+    size_t packet_len;
+
+    enum ofp_experimenter_long_reason reason;    /* One of OFPR_*. */
+    uint16_t controller_id;              /* Controller ID to send to. */
+    uint8_t table_id;
+    ovs_be64 cookie;
+
+    uint32_t buffer_id;
+    int send_len;
+    uint16_t total_len;         /* Full length of frame. */
+
+    struct flow_metadata fmd;   /* Metadata at creation time. */
+};
+
+enum ofperr ofputil_decode_experimenter_long(struct ofputil_experimenter_long *,
+                                     const struct ofp_header *);
+struct ofpbuf *ofputil_encode_experimenter_long(const struct ofputil_experimenter_long *,
+                                        enum ofputil_protocol protocol); /* manca l'argomento 
+                                                                          * enum nx_experimenter_long_format
+                                                                          * perchè non so se sia indispensabile
+                                                                          */
+
+const char *ofputil_experimenter_long_reason_to_string(enum ofp_experimenter_long_reason);
+bool ofputil_experimenter_long_reason_from_string(const char *,
+                                          enum ofp_experimenter_long_reason *);
+
+/* end */
+
+
+
+        /* authors by alessandra
+ * Abstract     const void *packet;  message
+ * ofputil_decode_vendor_general_purpose() will use in learning switch */
+struct ofputil_vendor_general_purpose {
+    const void *packet;
+    size_t packet_len;
+    uint16_t controller_id;              /* Controller ID to send to. */
+    int send_len;
+    struct flow_metadata fmd;   /* Metadata at creation time. */
+};
+enum ofperr ofputil_decode_vendor_general_purpose(struct ofputil_vendor_general_purpose *,
+                                     const struct ofp_header *);
+struct ofpbuf *ofputil_encode_vendor_general_purpose(const struct ofputil_vendor_general_purpose *,
+                                        enum ofputil_protocol protocol); 
+
+
 /* Abstract packet-out message.
  *
  * ofputil_decode_packet_out() will ensure that 'in_port' is a physical port
@@ -512,6 +564,9 @@ void ofputil_append_port_desc_stats_reply(enum ofp_version ofp_version,
 /* Encoding simple OpenFlow messages. */
 struct ofpbuf *make_echo_request(enum ofp_version);
 struct ofpbuf *make_echo_reply(const struct ofp_header *rq);
+/* authors by alessandra - declatation of new function in ofp-util.c */
+struct ofpbuf *make_generic_vendor_request(enum ofp_version);
+struct ofpbuf *make_generic_vendor_reply(const struct ofp_header *rq);
 
 struct ofpbuf *ofputil_encode_barrier_request(enum ofp_version);
 

@@ -55,8 +55,7 @@ long_options_to_short_options(const struct option options[])
  * null pointer.
  *
  * Command-line options should be stripped off, so that a typical invocation
- * looks like "run_command(argc - optind, argv + optind, my_commands);". */
-void
+ * looks like "run_command(argc - optind, argv + optind, my_commands);". */void
 run_command(int argc, char *argv[], const struct command commands[])
 {
     const struct command *p;

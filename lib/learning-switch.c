@@ -103,8 +103,11 @@ static enum ofperr process_switch_features(struct lswitch *,
                                            struct ofp_header *);
 static void process_packet_in(struct lswitch *, const struct ofp_header *);
 static void process_echo_request(struct lswitch *, const struct ofp_header *);
-
-/* Creates and returns a new learning switch whose configuration is given by
+/* authors by alessandra */
+static void process_experimenter_long(struct lswitch *, const struct ofp_header *);
+static void process_generic_vendor_request(struct lswitch *, const struct ofp_header *);
+/* Creates and returns a new learning switch whose configuration 
+ * is given by
  * 'cfg'.
  *
  * 'rconn' is used to send out an OpenFlow features request. */
@@ -310,6 +313,10 @@ lswitch_process_packet(struct lswitch *sw, const struct ofpbuf *msg)
     case OFPTYPE_ECHO_REQUEST:
         process_echo_request(sw, msg->data);
         break;
+        
+    case OFPTYPE_VENDOR_GENERAL_PURPOSE:
+        process_generic_vendor_request(sw, msg->data);
+        break;          
 
     case OFPTYPE_FEATURES_REPLY:
         if (sw->state == S_FEATURES_REPLY) {
@@ -321,14 +328,18 @@ lswitch_process_packet(struct lswitch *sw, const struct ofpbuf *msg)
         }
         break;
 
-    case OFPTYPE_PACKET_IN:
+    case OFPTYPE_PACKET_IN:    
         process_packet_in(sw, msg->data);
         break;
-
+        
+    case OFPTYPE_EXPERIMENTER_LONG:
+        process_experimenter_long(sw, msg->data);
+        break;
+        
     case OFPTYPE_FLOW_REMOVED:
         /* Nothing to do. */
         break;
-
+           
     case OFPTYPE_HELLO:
     case OFPTYPE_ERROR:
     case OFPTYPE_ECHO_REPLY:
@@ -607,4 +618,124 @@ static void
 process_echo_request(struct lswitch *sw, const struct ofp_header *rq)
 {
     queue_tx(sw, make_echo_reply(rq));
+}
+
+/* authors by alessandra
+ * gestione dell'arrivo di una request di tipo generic_vendor */
+static void
+process_generic_vendor_request(struct lswitch *sw, const struct ofp_header *rq)
+{
+    queue_tx(sw, make_generic_vendor_reply(rq));
+}
+
+/* start alessandra method
+ * 
+ * static void 
+process_experimenter_long(struct lswitch *sw, const struct ofp_header *oh){}
+ *  
+ * e' necessario risolvere i conflitti con l'header!!!
+ */
+
+static void 
+process_experimenter_long(struct lswitch *sw, const struct ofp_header *oh){
+    
+    struct ofputil_experimenter_long pi;
+    uint32_t queue_id;
+    uint16_t out_port;
+
+    uint64_t ofpacts_stub[64 / 8]; 
+    struct ofpbuf ofpacts;
+
+    struct ofputil_packet_out po;
+    enum ofperr error;
+
+    struct ofpbuf pkt;
+    struct flow flow;
+
+    error = ofputil_decode_experimenter_long(&pi, oh); 
+    if (error) {
+        VLOG_WARN_RL(&rl, "failed to decode experimenter-long: %s",
+                     ofperr_to_string(error));
+        return;
+    }
+
+    /* Ignore packets sent via output to OFPP_CONTROLLER.  This library never
+     * uses such an action.  You never know what experiments might be going on,
+     * though, and it seems best not to interfere with them. 
+     * in packet_in e' presente il controllo
+     * if (pi.reason != OFPR_NO_MATCH) { */
+    else{
+        return;
+    }
+
+    /* Extract flow data from 'opi' into 'flow'. */
+    ofpbuf_use_const(&pkt, pi.packet, pi.packet_len);
+    flow_extract(&pkt, 0, 0, NULL, pi.fmd.in_port, &flow);
+    flow.tunnel.tun_id = pi.fmd.tun_id;
+
+    /* Choose output port. */
+    /* authors by alessandra - rivedere questa funzione in quanto in questo momento
+     * l'experimenter long viene inviato dalla porta in cui arriva il packet-out */
+    out_port = lswitch_choose_destination(sw, &flow);
+
+    /* Make actions. */
+    queue_id = get_queue_id(sw, pi.fmd.in_port);
+    ofpbuf_use_stack(&ofpacts, ofpacts_stub, sizeof ofpacts_stub);
+    if (out_port == OFPP_NONE) {
+        /* No actions. */
+    } else if (queue_id == UINT32_MAX || out_port >= OFPP_MAX) {
+        ofpact_put_OUTPUT(&ofpacts)->port = out_port;
+    } else {
+        struct ofpact_enqueue *enqueue = ofpact_put_ENQUEUE(&ofpacts);
+        enqueue->port = out_port;
+        enqueue->queue = queue_id;
+    }
+    ofpact_pad(&ofpacts);
+
+    /* Prepare packet_out in case we need one. */
+    po.buffer_id = pi.buffer_id;
+    if (po.buffer_id == UINT32_MAX) {
+        po.packet = pkt.data;
+        po.packet_len = pkt.size;
+    } else {
+        po.packet = NULL;
+        po.packet_len = 0;
+    }
+    po.in_port = pi.fmd.in_port;
+    po.ofpacts = ofpacts.data;
+    po.ofpacts_len = ofpacts.size;
+
+    /* Send the packet, and possibly the whole flow, to the output port. */
+    if (sw->max_idle >= 0 && (!sw->ml || out_port != OFPP_FLOOD)) {
+        struct ofputil_flow_mod fm;
+        struct ofpbuf *buffer;
+
+        /* The output port is known, or we always flood everything, so add a
+         * new flow. */
+        memset(&fm, 0, sizeof fm);
+        match_init(&fm.match, &flow, &sw->wc);
+        ofputil_normalize_match_quiet(&fm.match);
+        fm.priority = 0;
+        fm.table_id = 0xff;
+        fm.command = OFPFC_ADD;
+        fm.idle_timeout = sw->max_idle;
+        fm.buffer_id = pi.buffer_id;
+        fm.out_port = OFPP_NONE;
+        fm.ofpacts = ofpacts.data;
+        fm.ofpacts_len = ofpacts.size;
+        buffer = ofputil_encode_flow_mod(&fm, sw->protocol);
+
+        queue_tx(sw, buffer);
+
+        /* If the switch didn't buffer the packet, we need to send a copy. */
+        if (pi.buffer_id == UINT32_MAX && out_port != OFPP_NONE) {
+            queue_tx(sw, ofputil_encode_packet_out(&po, sw->protocol));
+        }
+    } else {
+        /* We don't know that MAC, or we don't set up flows.  Send along the
+         * packet without setting up a flow. */
+        if (pi.buffer_id != UINT32_MAX || out_port != OFPP_NONE) {
+            queue_tx(sw, ofputil_encode_packet_out(&po, sw->protocol));
+        }
+    }
 }

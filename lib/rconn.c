@@ -1132,6 +1132,8 @@ is_admitted_msg(const struct ofpbuf *b)
     case OFPTYPE_FLOW_MONITOR_CANCEL:
     case OFPTYPE_FLOW_MONITOR_PAUSED:
     case OFPTYPE_FLOW_MONITOR_RESUMED:
+    case OFPTYPE_EXPERIMENTER_LONG: 
+    case OFPTYPE_VENDOR_GENERAL_PURPOSE:
     default:
         return true;
     }

@@ -53,6 +53,11 @@
 #include "vlog.h"
 #include "lib/vswitch-idl.h"
 #include "worker.h"
+/* 1 start_alessandra */
+ /****1****/
+/*static int var=0;
+FILE *fp; */
+/* 1 end */
 
 VLOG_DEFINE_THIS_MODULE(vswitchd);
 
@@ -67,7 +72,14 @@ static void usage(void) NO_RETURN;
 
 int
 main(int argc, char *argv[])
-{
+{    
+    /* 2 start_alessandra 
+    var++;
+    fp=fopen("alessandra_log.txt","w");
+    fprintf(fp,"sto scrivendo nel file , la funzione è chiamata %d volte\n", var);
+    fclose(fp);
+    2 end */
+    
     char *unixctl_path = NULL;
     struct unixctl_server *unixctl;
     struct signal *sighup;
@@ -85,6 +97,7 @@ main(int argc, char *argv[])
     ovsrec_init();
 
     daemonize_start();
+   
 
     if (want_mlockall) {
 #ifdef HAVE_MLOCKALL
@@ -97,6 +110,7 @@ main(int argc, char *argv[])
     }
 
     worker_start();
+
 
     retval = unixctl_server_create(unixctl_path, &unixctl);
     if (retval) {

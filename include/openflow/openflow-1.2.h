@@ -189,6 +189,18 @@ struct ofp12_oxm_experimenter_header {
 };
 OFP_ASSERT(sizeof(struct ofp12_oxm_experimenter_header) == 8);
 
+/* New packet_in 1 */
+struct ofp11_discovery_reply_log_resources{
+    ovs_be32 buffer_id;
+    ovs_be32 in_port;
+    ovs_be16 actions_len;
+    uint8_t pad[6];
+    char resource_id[32];
+    char description[32];
+};
+OFP_ASSERT(sizeof(struct ofp11_discovery_reply_log_resources) == 80);
+
+
 enum ofp12_action_type {
     OFPAT12_SET_FIELD = 25,     /* Set a header field using OXM TLV format. */
 };
@@ -296,6 +308,19 @@ struct ofp12_experimenter_stats_header {
     /* Experimenter-defined arbitrary additional data. */
 };
 OFP_ASSERT(sizeof(struct ofp12_experimenter_stats_header) == 8);
+
+/* new experimenter alessandra*/
+struct ofp12_experimenter_long{
+    ovs_be32 buffer_id; /* dim 4 */
+    ovs_be32 in_port; /* dim 4 */
+    ovs_be32 in_phy_port; /* dim 4 */
+    ovs_be32 total_len; /* dim 4 */
+    uint8_t reason;         /* dim 1 Reason packet is being sent (one of OFPR_*) */
+    uint8_t table_id;       /* dim 1 ID of the table that was looked up */
+    uint8_t data[14]; /* dim 14 */
+    struct ofp12_experimenter_stats_header h_experimenter; /* 8 */
+};
+OFP_ASSERT(sizeof(struct ofp12_experimenter_long) == 40 );
 
 /* Role request and reply message. */
 struct ofp12_role_request {

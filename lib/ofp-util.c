@@ -2291,6 +2291,222 @@ ofputil_packet_in_reason_from_string(const char *s,
     }
     return false;
 }
+/* authors by alessandra
+ * implements method of .h file
+ * 
+ * enum ofperr ofputil_decode_experimenter_long(struct ofputil_experimenter_long *,
+                                     const struct ofp12_experimenter_stats_header *);
+ * 
+ * struct ofpbuf *ofputil_encode_experimenter_long(const struct ofputil_experimenter_long *,
+                                        enum ofputil_protocol protocol); 
+ * 
+ * const char *ofputil_experimenter_long_reason_to_string(enum ofp_experimenter_long_reason);
+ * 
+ * bool ofputil_experimenter_long_reason_from_string(const char *,
+                                          enum ofp_experimenter_long_reason *); 
+ * 
+ */ 
+
+static void
+ofputil_decode_experimenter_long_finish(struct ofputil_experimenter_long *pin,
+                                struct match *match, struct ofpbuf *b)
+{
+    pin->packet = b->data;
+    pin->packet_len = b->size;
+
+    pin->fmd.in_port = match->flow.in_port;
+    pin->fmd.tun_id = match->flow.tunnel.tun_id;
+    pin->fmd.metadata = match->flow.metadata;
+    memcpy(pin->fmd.regs, match->flow.regs, sizeof pin->fmd.regs);
+}
+
+enum ofperr
+ofputil_decode_experimenter_long(struct ofputil_experimenter_long *pin,
+                         const struct ofp_header *oh)
+{
+    enum ofpraw raw;
+    struct ofpbuf b;
+
+    memset(pin, 0, sizeof *pin);
+
+    ofpbuf_use_const(&b, oh, ntohs(oh->length));
+    raw = ofpraw_pull_assert(&b);
+    if (raw == OFPRAW_OFPT12_EXPERIMENTER_LONG) {
+        const struct ofp12_experimenter_long *opi;
+        struct match match;
+        int error;
+
+        opi = ofpbuf_pull(&b, sizeof *opi);
+        error = oxm_pull_match_loose(&b, &match);
+        if (error) {
+            return error;
+        }
+
+        if (!ofpbuf_try_pull(&b, 2)) {
+            return OFPERR_OFPBRC_BAD_LEN;
+        }
+
+        pin->reason = opi->reason;
+        pin->table_id = opi->table_id;
+
+        pin->buffer_id = ntohl(opi->buffer_id);
+        pin->total_len = ntohs(opi->total_len);
+
+        ofputil_decode_experimenter_long_finish(pin, &match, &b);
+    }  else {
+        NOT_REACHED();
+    }
+
+    return 0;
+}
+/*  Use one of the match_*() functions to initialize a "struct match".
+ *
+ * The match_*() functions below maintain the following important invariant.
+ * If a bit or a field is wildcarded in 'wc', then the corresponding bit or
+ * field in 'flow' is set to all-0-bits.  (The match_zero_wildcarded_fields()
+ * function can be used to restore this invariant after adding wildcards.) 
+ * 
+ * Non credo sia indispensabile per i nostri scopi 
+ 
+static void
+ofputil_experimenter_long_to_match(const struct ofputil_experimenter_long *pin,
+                           struct match *match)
+{
+    int i;
+
+    match_init_catchall(match);
+    if (pin->fmd.tun_id != htonll(0)) {
+        match_set_tun_id(match, pin->fmd.tun_id);
+    }
+    if (pin->fmd.metadata != htonll(0)) {
+        match_set_metadata(match, pin->fmd.metadata);
+    }
+
+    for (i = 0; i < FLOW_N_REGS; i++) {
+        if (pin->fmd.regs[i]) {
+            match_set_reg(match, i, pin->fmd.regs[i]);
+        }
+    }
+
+    match_set_in_port(match, pin->fmd.in_port);
+}
+ */
+
+/* Converts abstract ofputil_packet_in 'pin' into a EXPERIMENTER_LONG message
+ * in the format specified by 'ofputil_experimenter_long_format'.  */
+struct ofpbuf *
+ofputil_encode_experimenter_long(const struct ofputil_experimenter_long *pin,
+                         enum ofputil_protocol protocol)
+{
+    size_t send_len = MIN(pin->send_len, pin->packet_len);
+    struct ofpbuf *packet;
+
+    /* Add OFPT_EXPERIMENTER_LONG. */
+    if (protocol == OFPUTIL_P_OF12) {
+        struct ofp12_experimenter_long *opi;
+        //struct match match;
+
+        //ofputil_experimenter_long_to_match(pin, &match);
+
+        /* The final argument is just an estimate of the space required. */
+        packet = ofpraw_alloc_xid(OFPRAW_OFPT12_EXPERIMENTER_LONG, OFP12_VERSION,
+                                  htonl(0), (sizeof(struct flow_metadata) * 2
+                                             + 2 + send_len));
+        ofpbuf_put_zeros(packet, sizeof *opi);
+        //oxm_put_match(packet, &match);
+        ofpbuf_put_zeros(packet, 2);
+        ofpbuf_put(packet, pin->packet, send_len);
+
+        opi = packet->l3;
+        opi->buffer_id = htonl(pin->buffer_id);
+        opi->total_len = htons(pin->total_len);
+        opi->table_id = pin->table_id;
+   } else {
+        NOT_REACHED();
+    }
+    ofpmsg_update_length(packet);
+
+    return packet;
+}
+
+const char *
+ofputil_experimenter_long_reason_to_string(enum ofp_experimenter_long_reason reason)
+{
+    static char s[INT_STRLEN(int) + 1];
+
+    switch (reason) {
+    case OFPR_ICN_REASON:
+        return "ICN_reason";
+    default:
+        sprintf(s, "%d", (int) reason);
+        return s;
+    }
+}
+
+/* Non necessaria in questo momento in quanto di default e' stata inserita una sola reason.
+ * per sviluppi futuri puo essere implementata anche questa funzione inserendo nel file
+ * openflow-common.h un campo OFPR_N_REASONS_EXP_LONG in cui si esprime il numero di reason
+ * se fossero molteplici per poi usare questa funzione
+ 
+bool
+ofputil_experimenter_long_reason_from_string(const char *s,
+                                     enum ofp_experimenter_long_reason *reason)
+{
+    int i;
+
+    for (i = 0; i < 2; i++) {
+        if (!strcasecmp(s, ofputil_experimenter_long_reason_to_string(i))) {
+            *reason = i;
+            return true;
+        }
+    }
+    return false;
+}*/
+
+/* end */
+
+/* authors by alessandra - funzione di supporto  */
+static void
+ofputil_decode_vendor_general_purpose_finish(struct ofputil_vendor_general_purpose *pin,
+                                struct match *match, struct ofpbuf *b)
+{
+    return;
+}
+
+
+enum ofperr
+ofputil_decode_vendor_general_purpose(struct ofputil_vendor_general_purpose *pin,
+                         const struct ofp_header *oh)
+{
+    enum ofpraw raw;
+    struct ofpbuf b;
+    
+    memset(pin, 0, sizeof *pin);
+
+    ofpbuf_use_const(&b, oh, ntohs(oh->length));
+    raw = ofpraw_pull_assert(&b);
+    if (raw == OFPRAW_OFPT10_VENDOR_GENERAL_PURPOSE) {
+        const struct ofp_vendor_general_purpose *ovgp;
+        struct match match;
+        int error;
+
+        ovgp = ofpbuf_pull(&b, sizeof *ovgp);
+        error = oxm_pull_match_loose(&b, &match);
+        if (error) {
+            return error;
+        }
+
+        if (!ofpbuf_try_pull(&b, 2)) {
+            return OFPERR_OFPBRC_BAD_LEN;
+        }
+        ofputil_decode_vendor_general_purpose_finish(pin, &match, &b);
+    }  else {
+        NOT_REACHED();
+    }
+
+    return 0;
+}
+
 
 /* Converts an OFPT_PACKET_OUT in 'opo' into an abstract ofputil_packet_out in
  * 'po'.
@@ -3229,7 +3445,12 @@ ofputil_decode_flow_update(struct ofputil_flow_update *update,
         nfua = ofpbuf_pull(msg, sizeof *nfua);
         update->xid = nfua->xid;
         return 0;
-    } else if (update->event == NXFME_ADDED
+    } 
+    /* authors by alessandra 
+     * gestione errori dal controller in seguito all'header vendor
+     * che non rientra in nessuno dei seguenti e quindi ritorna un BAD_REQUEST 
+     * update è di tipo ofputil_flow_update
+     */ else if (update->event == NXFME_ADDED
                || update->event == NXFME_DELETED
                || update->event == NXFME_MODIFIED) {
         struct nx_flow_update_full *nfuf;
@@ -3254,12 +3475,14 @@ ofputil_decode_flow_update(struct ofputil_flow_update *update,
         update->cookie = nfuf->cookie;
         update->priority = ntohs(nfuf->priority);
 
+        /* attenzione 1 di sicuro ritorna 0 perchè non ritorna un errore dalla funzione nx_pull_match */
         error = nx_pull_match(msg, match_len, update->match, NULL, NULL);
         if (error) {
             return error;
         }
 
         actions_len = length - sizeof *nfuf - ROUND_UP(match_len, 8);
+        /* attenzione 2*/
         error = ofpacts_pull_openflow10(msg, actions_len, ofpacts);
         if (error) {
             return error;
@@ -3267,8 +3490,10 @@ ofputil_decode_flow_update(struct ofputil_flow_update *update,
 
         update->ofpacts = ofpacts->data;
         update->ofpacts_len = ofpacts->size;
-        return 0;
-    } else {
+        return 0;     
+          
+          }else 
+    /* in questo punto, senza utilizzare codici nicira ext, implemento le funzioni di controllo */{
         VLOG_WARN_RL(&bad_ofmsg_rl,
                      "NXST_FLOW_MONITOR reply has bad event %"PRIu16,
                      ntohs(nfuh->event));
@@ -3433,6 +3658,34 @@ make_echo_reply(const struct ofp_header *rq)
     ofpraw_pull_assert(&rq_buf);
 
     reply = ofpraw_alloc_reply(OFPRAW_OFPT_ECHO_REPLY, rq, rq_buf.size);
+    ofpbuf_put(reply, rq_buf.data, rq_buf.size);
+    return reply;
+}
+
+
+/* authors by alessandra 
+ * Crea e ritorna un OFPT_ECHO_REQUEST con un payload vuoto. */
+struct ofpbuf *
+make_generic_vendor_request(enum ofp_version ofp_version)
+{
+    return ofpraw_alloc_xid(OFPRAW_OFPT10_VENDOR_GENERAL_PURPOSE, ofp_version,
+                            htonl(0), 0);
+}
+
+/* authors by alessandra 
+ * creo questa funzione per richiamarla nel learning switch 
+ * in risposta alla request
+ */
+struct ofpbuf *
+make_generic_vendor_reply(const struct ofp_header *rq)
+{
+    struct ofpbuf rq_buf;
+    struct ofpbuf *reply;
+
+    ofpbuf_use_const(&rq_buf, rq, ntohs(rq->length));
+    ofpraw_pull_assert(&rq_buf);
+
+    reply = ofpraw_alloc_reply(OFPRAW_OFPT10_VENDOR_GENERAL_PURPOSE, rq, rq_buf.size);
     ofpbuf_put(reply, rq_buf.data, rq_buf.size);
     return reply;
 }

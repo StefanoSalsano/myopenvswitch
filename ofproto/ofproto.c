@@ -65,6 +65,8 @@ COVERAGE_DEFINE(ofproto_recv_openflow);
 COVERAGE_DEFINE(ofproto_reinit_ports);
 COVERAGE_DEFINE(ofproto_uninstallable);
 COVERAGE_DEFINE(ofproto_update_port);
+/*authors by alessandra */
+COVERAGE_DEFINE(ofproto_no_experiment_long);
 
 enum ofproto_state {
     S_OPENFLOW,                 /* Processing OpenFlow commands. */
@@ -878,7 +880,7 @@ ofproto_set_flood_vlans(struct ofproto *ofproto, unsigned long *flood_vlans)
 {
     return (ofproto->ofproto_class->set_flood_vlans
             ? ofproto->ofproto_class->set_flood_vlans(ofproto, flood_vlans)
-            : EOPNOTSUPP);
+            : EOPNOTSUPP);              
 }
 
 /* Returns true if 'aux' is a registered bundle that is currently in use as the
@@ -3777,6 +3779,21 @@ handle_flow_monitor_cancel(struct ofconn *ofconn, const struct ofp_header *oh)
     return 0;
 }
 
+/* authors by alessandra - questa funzione gestisce l'arrivo di un messaggio
+ * dal controllore e prevede la risposta */
+static enum ofperr
+handle_vendor_general_purpose(struct ofconn *ofconn, const struct ofp_header *oh)
+{
+    struct ofpbuf *buf;
+    if (ofconn_has_pending_opgroups(ofconn)) {
+        return OFPROTO_POSTPONE;
+    }
+
+    buf = ofpraw_alloc_reply(OFPRAW_OFPT10_VENDOR_GENERAL_PURPOSE, oh, 0);
+    ofconn_send_reply(ofconn, buf);
+    return 0;
+}
+
 static enum ofperr
 handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
 {
@@ -3814,6 +3831,11 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
 
     case OFPTYPE_BARRIER_REQUEST:
         return handle_barrier_request(ofconn, oh);
+    
+    /* authors by alessandra 
+     * implemented in switch  */    
+    case OFPTYPE_VENDOR_GENERAL_PURPOSE:
+        return handle_vendor_general_purpose(ofconn, oh);         
 
         /* OpenFlow replies. */
     case OFPTYPE_ECHO_REPLY:
@@ -3889,6 +3911,7 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
     case OFPTYPE_FLOW_MONITOR_PAUSED:
     case OFPTYPE_FLOW_MONITOR_RESUMED:
     case OFPTYPE_FLOW_MONITOR_STATS_REPLY:
+    case OFPTYPE_EXPERIMENTER_LONG:
     default:
         return OFPERR_OFPBRC_BAD_TYPE;
     }

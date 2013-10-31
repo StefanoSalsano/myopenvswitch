@@ -259,6 +259,22 @@ connmgr_destroy(struct connmgr *mgr)
  * If 'handle_openflow' is NULL, no OpenFlow messages will be processed and
  * other activities that could affect the flow table (in-band processing,
  * fail-open processing) are suppressed too. */
+
+/* Gestisce tutta la manutenzione periodica richiesta da 'mgr'. 
+ * Se 'handle_openflow' è non nullo, chiama 'handle_openflow' per ogni 
+ * messaggio ricevuto su una connessione OpenFlow, passando lungo la connessione
+ * OpenFlow se stesso e il messaggio che è stato inviato. Se 'handle_openflow' 
+ * restituisce true, il messaggio si considera completamente elaborati. 
+ * Se 'handle_openflow' restituisce false, il messaggio viene considerato 
+ * non sono stati elaborati a tutti, verrà memorizzato e ri-presentato a 
+ * 'handle_openflow' dopo la chiamata successiva a connmgr_retry (). 
+ * 'handle_openflow' non deve modificare o liberare il messaggio. 
+ * 
+ * Se 'handle_openflow' è NULL, nessun messaggio OpenFlow sarà elaborato 
+ * e le altre attività che potrebbero influenzare la tabella dei flussi 
+ * (elaborazione in banda, elaborazione fail-open) 
+ * vengono soppressi anche. 
+ */
 void
 connmgr_run(struct connmgr *mgr,
             bool (*handle_openflow)(struct ofconn *, struct ofpbuf *ofp_msg))
@@ -1369,6 +1385,8 @@ do_send_packet_in(struct ofpbuf *ofp_packet_in, void *ofconn_)
     rconn_send_with_limit(ofconn->rconn, ofp_packet_in,
                           ofconn->packet_in_counter, 100);
 }
+/* Start alessandra code */
+
 
 /* Takes 'pin', composes an OpenFlow packet-in message from it, and passes it
  * to 'ofconn''s packet scheduler for sending. */

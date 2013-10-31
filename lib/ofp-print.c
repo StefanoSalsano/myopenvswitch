@@ -145,6 +145,115 @@ ofp_print_packet_in(struct ds *string, const struct ofp_header *oh,
         free(packet);
     }
 }
+/* authors by alessandra
+ *  */
+static void
+ofp_print_experiment_long(struct ds *string, const struct ofp_header *oh,
+                    int verbosity)
+{
+    struct ofputil_experimenter_long pin;
+    int error;
+    int i;
+
+    error = ofputil_decode_experimenter_long(&pin, oh);
+    if (error) {
+        ofp_print_error(string, error);
+        return;
+    }
+
+    if (pin.table_id) {
+        ds_put_format(string, " table_id=%"PRIu8, pin.table_id);
+    }
+
+    if (pin.cookie) {
+        ds_put_format(string, " cookie=0x%"PRIx64, ntohll(pin.cookie));
+    }
+
+    ds_put_format(string, " total_len=%"PRIu16" in_port=", pin.total_len);
+    ofputil_format_port(pin.fmd.in_port, string);
+
+    if (pin.fmd.tun_id != htonll(0)) {
+        ds_put_format(string, " tun_id=0x%"PRIx64, ntohll(pin.fmd.tun_id));
+    }
+
+    if (pin.fmd.metadata != htonll(0)) {
+        ds_put_format(string, " metadata=0x%"PRIx64, ntohll(pin.fmd.metadata));
+    }
+
+    for (i = 0; i < FLOW_N_REGS; i++) {
+        if (pin.fmd.regs[i]) {
+            ds_put_format(string, " reg%d=0x%"PRIx32, i, pin.fmd.regs[i]);
+        }
+    }
+
+    ds_put_format(string, " (via %s)",
+                  ofputil_experimenter_long_reason_to_string(pin.reason));
+
+    ds_put_format(string, " data_len=%zu", pin.packet_len);
+    if (pin.buffer_id == UINT32_MAX) {
+        ds_put_format(string, " (unbuffered)");
+        if (pin.total_len != pin.packet_len) {
+            ds_put_format(string, " (***total_len != data_len***)");
+        }
+    } else {
+        ds_put_format(string, " buffer=0x%08"PRIx32, pin.buffer_id);
+        if (pin.total_len < pin.packet_len) {
+            ds_put_format(string, " (***total_len < data_len***)");
+        }
+    }
+    ds_put_char(string, '\n');
+
+    if (verbosity > 0) {
+        char *packet = ofp_packet_to_string(pin.packet, pin.packet_len);
+        ds_put_cstr(string, packet);
+        free(packet);
+    }
+}
+/* end */
+
+/* authors by alessandra
+ * funzione che e' una voce dello switch, puo' anche non far nulla
+ *  */
+static void
+ofp_print_vendor_general_purpose(struct ds *string, const struct ofp_header *oh,
+                    int verbosity)
+{
+    struct ofputil_vendor_general_purpose pin;
+    int error;
+    int i;
+
+    error = ofputil_decode_vendor_general_purpose(&pin, oh);
+    if (error) {
+        ofp_print_error(string, error);
+        return;
+    }
+    if (pin.fmd.tun_id != htonll(0)) {
+        ds_put_format(string, " tun_id=0x%"PRIx64, ntohll(pin.fmd.tun_id));
+    }
+
+    if (pin.fmd.metadata != htonll(0)) {
+        ds_put_format(string, " metadata=0x%"PRIx64, ntohll(pin.fmd.metadata));
+    }
+
+    for (i = 0; i < FLOW_N_REGS; i++) {
+        if (pin.fmd.regs[i]) {
+            ds_put_format(string, " reg%d=0x%"PRIx32, i, pin.fmd.regs[i]);
+        }
+    }
+        if (pin.send_len != 0)
+            ds_put_format(string, " data_len=%zu", pin.packet_len);
+        if (verbosity > 0 && pin.packet_len > 0) {
+            char *packet = ofp_packet_to_string(pin.packet, pin.packet_len);
+            ds_put_char(string, '\n');
+            ds_put_cstr(string, packet);
+            free(packet);
+        }
+    
+    ds_put_char(string, '\n');
+
+    }
+
+/* end */
 
 static void
 ofp_print_packet_out(struct ds *string, const struct ofp_header *oh,
@@ -1628,6 +1737,9 @@ static void
 ofp_print_nxst_flow_monitor_reply(struct ds *string,
                                   const struct ofp_header *oh)
 {
+    /* authors by alessandra
+     * questa funzione viene richiamata all'arrivo di un messaggio vendor
+     * dal controller e stampa il tipo di errore  */
     uint64_t ofpacts_stub[1024 / 8];
     struct ofpbuf ofpacts;
     struct ofpbuf b;
@@ -1640,6 +1752,7 @@ ofp_print_nxst_flow_monitor_reply(struct ds *string,
         int retval;
 
         update.match = &match;
+        /* questa funzione torna l'errore BAD_REQUEST al new vendor type*/
         retval = ofputil_decode_flow_update(&update, &b, &ofpacts);
         if (retval) {
             if (retval != EOF) {
@@ -1760,6 +1873,13 @@ ofp_to_string__(const struct ofp_header *oh, enum ofpraw raw,
 
     case OFPTYPE_PACKET_IN:
         ofp_print_packet_in(string, oh, verbosity);
+        break;
+        
+    case OFPTYPE_EXPERIMENTER_LONG:
+        ofp_print_experiment_long(string, oh, verbosity);
+        break;
+    case OFPTYPE_VENDOR_GENERAL_PURPOSE:
+        ofp_print_vendor_general_purpose(string, oh, verbosity);
         break;
 
     case OFPTYPE_FLOW_REMOVED:

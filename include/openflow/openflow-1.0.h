@@ -557,4 +557,14 @@ struct ofp_vendor_header {
 };
 OFP_ASSERT(sizeof(struct ofp_vendor_header) == 12);
 
+/* authors by alessandra
+ * messaggio con header vendor e campi per contenere
+ * il file in json con ICN infos */
+struct ofp_vendor_general_purpose {
+    struct ofp_vendor_header header;   /*12 Type OFPT_VENDOR. */
+    ovs_be32 msg_type; /* 4 */
+    uint8_t data[1400]; /* 1400 */ 
+};
+OFP_ASSERT(sizeof(struct ofp_vendor_general_purpose) == 1416);
+
 #endif /* openflow/openflow-1.0.h */

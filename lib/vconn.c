@@ -54,6 +54,8 @@ enum vconn_state {
     VCS_SEND_HELLO,             /* Waiting to send OFPT_HELLO message. */
     VCS_RECV_HELLO,             /* Waiting to receive OFPT_HELLO message. */
     VCS_CONNECTED,              /* Connection established. */
+    VCS_SEND_GENERIC_VENDOR,    /* Aspetta di inviare OFPST10_VENDOR_GENERAL_PURPOSE */
+    VCS_RECV_GENERIC_VENDOR,    /* Aspetta di ricevere OFPST10_VENDOR_GENERAL_PURPOSE */
 
     /* These states are entered only when something goes wrong. */
     VCS_SEND_ERROR,             /* Sending OFPT_ERROR message. */
@@ -264,7 +266,9 @@ vconn_run(struct vconn *vconn)
 {
     if (vconn->state == VCS_CONNECTING ||
         vconn->state == VCS_SEND_HELLO ||
-        vconn->state == VCS_RECV_HELLO) {
+        vconn->state == VCS_RECV_HELLO ||
+        vconn->state == VCS_RECV_GENERIC_VENDOR ||
+        vconn->state == VCS_SEND_GENERIC_VENDOR    ) {
         vconn_connect(vconn);
     }
 
@@ -280,7 +284,9 @@ vconn_run_wait(struct vconn *vconn)
 {
     if (vconn->state == VCS_CONNECTING ||
         vconn->state == VCS_SEND_HELLO ||
-        vconn->state == VCS_RECV_HELLO) {
+        vconn->state == VCS_RECV_HELLO ||
+        vconn->state == VCS_SEND_GENERIC_VENDOR ||
+        vconn->state == VCS_RECV_GENERIC_VENDOR) {
         vconn_connect_wait(vconn);
     }
 
@@ -406,6 +412,74 @@ vcs_send_hello(struct vconn *vconn)
     }
 }
 
+/* authors by alessandra 
+ * sto scrivendo la funzione che invia il pacchetto.
+ * Intanto vedendo come è costruito l'invio dell'errore vedo di
+ * stampare qualche messaggio che realizzi l'invio.
+ *  */
+static void
+vcs_send_general_vendor(struct vconn *vconn)
+{
+    struct ofpbuf *b;
+    int retval;
+
+    b = ofpraw_alloc(OFPRAW_OFPT10_VENDOR_GENERAL_PURPOSE, OFP10_VERSION, 0);
+    retval = do_send(vconn, b);
+//    if (!retval) {
+//        vconn->state = VCS_RECV_GENERIC_VENDOR;
+//    } else {
+//        ofpbuf_delete(b);
+//        if (retval != EAGAIN) {
+//            vconn->state = VCS_DISCONNECTED;
+//            vconn->error = retval;
+//        }
+//    }
+}
+
+/* authors by alessandra 
+ * sto scrivendo la funzione che riceve il pacchetto.
+ * E' importante che riveda questa funzione in quanto è simile alla ricezione
+ * dell'hello ma non è proprio la stessa cosa
+ *  */
+static void
+vcs_recv_general_vendor(struct vconn *vconn)
+{
+    struct ofpbuf *b;
+    int retval;
+
+    retval = do_recv(vconn, &b);
+    if (!retval) {
+        const struct ofp_header *oh = b->data;
+        enum ofptype type;
+        enum ofperr error;
+
+        error = ofptype_decode(&type, b->data);
+        if (!error && type == OFPTYPE_VENDOR_GENERAL_PURPOSE) {
+            if (b->size > sizeof *oh) {
+                struct ds msg = DS_EMPTY_INITIALIZER;
+                ds_put_format(&msg, "%s: extra-long vendor general purpose:\n", vconn->name);
+                ds_put_hex_dump(&msg, b->data, b->size, 0, true);
+                VLOG_WARN_RL(&bad_ofmsg_rl, "%s", ds_cstr(&msg));
+                ds_destroy(&msg);
+            }
+            ofpbuf_delete(b);
+            return;
+        } else {
+            char *s = ofp_to_string(b->data, b->size, 1);
+            VLOG_WARN_RL(&bad_ofmsg_rl,
+                         "%s: received message while expecting vendor general purpose: %s",
+                         vconn->name, s);
+            free(s);
+            retval = EPROTO;
+            ofpbuf_delete(b);
+        }
+    }
+    if (retval != EAGAIN) {
+        vconn->state = VCS_DISCONNECTED;
+        vconn->error = retval == EOF ? ECONNRESET : retval;
+    }
+}
+
 static void
 vcs_recv_hello(struct vconn *vconn)
 {
@@ -508,6 +582,14 @@ vconn_connect(struct vconn *vconn)
 
         case VCS_RECV_HELLO:
             vcs_recv_hello(vconn);
+            break;
+                        
+        case VCS_RECV_GENERIC_VENDOR: 
+            vcs_recv_general_vendor(vconn);
+            break;
+        
+        case VCS_SEND_GENERIC_VENDOR:
+            vcs_send_general_vendor(vconn);
             break;
 
         case VCS_CONNECTED:

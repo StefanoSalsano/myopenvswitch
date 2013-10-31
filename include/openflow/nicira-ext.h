@@ -25,6 +25,12 @@
  * suitable for standardization; others we never expect to standardize. */
 
 #define NX_VENDOR_ID 0x00002320
+
+/* authors by alessandra
+ * si introduce la definizione di un nuovo ID vendor per 
+ * estendere il protocollo affinchè ri posso riconoscere l'ID generic purpose
+ * potrebbe essere fatto anche in un altro file */
+#define GENERIC_PURPOSE 0xAABBCCDD
 
 /* Nicira vendor-specific error messages extension.
  *

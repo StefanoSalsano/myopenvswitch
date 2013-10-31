@@ -35,6 +35,9 @@
 #include "util.h"
 #include "vlog.h"
 
+    
+#include <stdio.h> 
+
 VLOG_DEFINE_THIS_MODULE(worker);
 
 /* Header for an RPC request. */
@@ -88,9 +91,8 @@ void
 worker_start(void)
 {
     int work_fds[2];
-
     assert(client_sock < 0);
-
+    
     /* Create non-blocking socket pair. */
     xsocketpair(AF_UNIX, SOCK_STREAM, 0, work_fds);
     xset_nonblocking(work_fds[0]);

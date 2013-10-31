@@ -35,6 +35,8 @@ VLOG_DEFINE_THIS_MODULE(ofp_msgs);
 #define OFPT11_STATS_REPLY 19
 #define OFPST_VENDOR 0xffff
 
+FILE *fp;
+
 /* A thin abstraction of OpenFlow headers:
  *
  *   - 'version' and 'type' come straight from struct ofp_header, so these are
@@ -167,7 +169,35 @@ ofphdrs_decode(struct ofphdrs *hdrs,
             }
             nh = (const struct nicira_header *) oh;
             hdrs->subtype = ntohl(nh->subtype);
-        } else {
+        }
+        /* authors by alessandra
+         * qui devo aggiungere il controllo sull'ID definito in nicira-ext.h
+         * ovvero sull'ID : #define GENERIC_PURPOSE 0xAABBCCDD */
+        if (hdrs->vendor == GENERIC_PURPOSE){
+            /* implementare la gestione!!! 
+             * Dato che il messaggio in openflow-1.0.h contiene 
+             * struct ofp_vendor_header header;
+             * ovs_be32 msg_type; 
+             * uint8_t data[1400];  
+             * posso estrarre msg_type e data[1400] :)
+             */
+            const struct ofp_vendor_header *ovh;
+            
+            /* potre inserire una gestione di controllo della lunghezza del tipo
+             *  if (length < sizeof *ovh) {
+                return OFPERR_OFPBRC_BAD_LEN;
+            } */
+            ovh = (const struct ofp_vendor_header *) oh;
+            
+            //hdrs->type = ntohl(ovh->header->type);
+            /* per capriccio salvo l'ID del vendor che dovrebbe essere
+             * vendor = 0xAABBCCDD già inserito in include/openflow/nicita-ext.h */
+                fp=fopen("alessandra_log.txt","a");
+                
+                fprintf(fp,"L'ID del messaggio e' %d \n", ovh->vendor);
+                fclose(fp);
+            
+        }else {
             log_bad_vendor(hdrs->vendor);
             return OFPERR_OFPBRC_BAD_VENDOR;
         }

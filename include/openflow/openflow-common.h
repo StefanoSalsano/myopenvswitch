@@ -334,4 +334,12 @@ enum ofp_group {
     OFPG_ANY        = 0xffffffff   /* Wildcard, for flow stats requests. */
 };
 
+/* authors by alessandra
+ * Why is this packet (experimenter) being sent to the controller? */
+enum ofp_experimenter_long_reason {
+    OFPR_ICN_REASON /* Info about ICN */
+};
+/* end */
+
+
 #endif /* openflow/openflow-common.h */

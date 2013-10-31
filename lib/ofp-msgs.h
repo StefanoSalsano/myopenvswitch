@@ -163,9 +163,10 @@ enum ofpraw {
 
     /* OFPT 1.0 (13): struct ofp_packet_out, uint8_t[]. */
     OFPRAW_OFPT10_PACKET_OUT,
-    /* OFPT 1.1+ (13): struct ofp11_packet_out, uint8_t[]. */
+    /* OFPT 1.2+ (13): struct ofp11_packet_out, uint8_t[]. */
     OFPRAW_OFPT11_PACKET_OUT,
 
+    
     /* OFPT 1.0 (14): struct ofp10_flow_mod, struct ofp_action_header[]. */
     OFPRAW_OFPT10_FLOW_MOD,
     /* OFPT 1.1+ (14): struct ofp11_flow_mod, struct ofp11_instruction[]. */
@@ -187,6 +188,8 @@ enum ofpraw {
     OFPRAW_OFPT10_BARRIER_REPLY,
     /* OFPT 1.1+ (21): void. */
     OFPRAW_OFPT11_BARRIER_REPLY,
+    /* OFPT 1.1+ (33): struct ofp12_experimenter_long, uint8_t[]. */
+    OFPRAW_OFPT12_EXPERIMENTER_LONG,
 
 /* Standard statistics. */
 
@@ -259,6 +262,9 @@ enum ofpraw {
     OFPRAW_OFPST10_PORT_DESC_REPLY,
     /* OFPST 1.1+ (13): struct ofp11_port[]. */
     OFPRAW_OFPST11_PORT_DESC_REPLY,
+    
+    /* OFPT 1.0 (34): struct ofp_vendor_general_purpose[]. */
+    OFPRAW_OFPT10_VENDOR_GENERAL_PURPOSE,
 
 /* Nicira extension messages.
  *
@@ -370,15 +376,18 @@ enum ofptype {
                                   * OFPRAW_OFPT11_PACKET_IN.
                                   * OFPRAW_OFPT12_PACKET_IN.
                                   * OFPRAW_NXT_PACKET_IN. */
+
     OFPTYPE_FLOW_REMOVED,        /* OFPRAW_OFPT10_FLOW_REMOVED.
                                   * OFPRAW_OFPT11_FLOW_REMOVED.
                                   * OFPRAW_NXT_FLOW_REMOVED. */
     OFPTYPE_PORT_STATUS,         /* OFPRAW_OFPT10_PORT_STATUS.
                                   * OFPRAW_OFPT11_PORT_STATUS. */
+    OFPTYPE_EXPERIMENTER_LONG,   /* OFPRAW_OFPT12_EXPERIMENTER_LONG. */
 
     /* Controller command messages. */
     OFPTYPE_PACKET_OUT,          /* OFPRAW_OFPT10_PACKET_OUT.
                                   * OFPRAW_OFPT11_PACKET_OUT. */
+
     OFPTYPE_FLOW_MOD,            /* OFPRAW_OFPT10_FLOW_MOD.
                                   * OFPRAW_OFPT11_FLOW_MOD.
                                   * OFPRAW_NXT_FLOW_MOD. */
@@ -421,6 +430,7 @@ enum ofptype {
 
     OFPTYPE_PORT_DESC_STATS_REPLY,   /* OFPRAW_OFPST10_PORT_DESC_REPLY.
                                       * OFPRAW_OFPST11_PORT_DESC_REPLY. */
+    OFPTYPE_VENDOR_GENERAL_PURPOSE,     /* OFPRAW_OFPT10_VENDOR_GENERAL_PURPOSE. */
 
     /* Nicira extensions. */
     OFPTYPE_ROLE_REQUEST,         /* OFPRAW_NXT_ROLE_REQUEST. */
